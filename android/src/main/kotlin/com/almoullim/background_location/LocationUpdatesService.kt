@@ -297,9 +297,9 @@ class LocationUpdatesService : Service(), MethodChannel.MethodCallHandler {
         } else  {
             Log.i("LocationService", "Skipping background engine $callbackHandle - $backgroundEngine")
         }
-        if (backgroundEngine != null && backgroundEngine?.dartExecutor != null) {
+        backgroundEngine?.dartExecutor?.let {
             backgroundChannel = MethodChannel(
-                backgroundEngine!!.dartExecutor.binaryMessenger,
+                it.binaryMessenger,
                 "com.almoullim.background_location/background"
             )
         }
@@ -366,7 +366,7 @@ class LocationUpdatesService : Service(), MethodChannel.MethodCallHandler {
                 NotificationManager.IMPORTANCE_DEFAULT
             )
             mChannel.setSound(null, null)
-            mNotificationManager!!.createNotificationChannel(mChannel)
+            mNotificationManager?.createNotificationChannel(mChannel)
         }
 
         ServiceCompat.startForeground(this, NOTIFICATION_ID, notification.build(),
@@ -383,16 +383,22 @@ class LocationUpdatesService : Service(), MethodChannel.MethodCallHandler {
         Utils.setRequestingLocationUpdates(this, true)
         try {
             if (isGoogleApiAvailable && !this.forceLocationManager) {
-                mFusedLocationClient!!.requestLocationUpdates(
-                    mLocationRequest!!, mFusedLocationCallback!!, Looper.myLooper()
-                )
+                mLocationRequest?.let {
+                    mFusedLocationCallback?.let { it1 ->
+                        mFusedLocationClient?.requestLocationUpdates(
+                            it, it1, Looper.myLooper()
+                        )
+                    }
+                }
             } else {
-                mLocationManager?.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    0L,
-                    0f,
-                    mLocationManagerCallback!!
-                )
+                mLocationManagerCallback?.let {
+                    mLocationManager?.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        0L,
+                        0f,
+                        it
+                    )
+                }
             }
         } catch (unlikely: SecurityException) {
             Utils.setRequestingLocationUpdates(this, false)
@@ -440,13 +446,13 @@ class LocationUpdatesService : Service(), MethodChannel.MethodCallHandler {
     private fun getLastLocation() {
         try {
             if (isGoogleApiAvailable && !this.forceLocationManager) {
-                mFusedLocationClient!!.lastLocation.addOnCompleteListener { task ->
-                        if (task.isSuccessful && task.result != null) {
-                            onNewLocation(task.result)
-                        }
+                mFusedLocationClient?.lastLocation?.addOnCompleteListener { task ->
+                    if (task.isSuccessful && task.result != null) {
+                        onNewLocation(task.result)
                     }
+                }
             } else {
-                mLocation = mLocationManager!!.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                mLocation = mLocationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
             }
         } catch (unlikely: SecurityException) {
         }
@@ -536,17 +542,19 @@ class LocationUpdatesService : Service(), MethodChannel.MethodCallHandler {
     }
 
 
-    private fun createLocationRequest(priority: Int, distanceFilter: Double) {
-        mLocationRequest = LocationRequest()
-        mLocationRequest!!.interval = UPDATE_INTERVAL_IN_MILLISECONDS
-        mLocationRequest!!.fastestInterval = FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS
-        if (priority == 0) mLocationRequest!!.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-        if (priority == 1) mLocationRequest!!.priority =
-            LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY
-        if (priority == 2) mLocationRequest!!.priority = LocationRequest.PRIORITY_LOW_POWER
-        if (priority == 3) mLocationRequest!!.priority = LocationRequest.PRIORITY_NO_POWER
-        mLocationRequest!!.smallestDisplacement = distanceFilter.toFloat()
-        mLocationRequest?.maxWaitTime = UPDATE_INTERVAL_IN_MILLISECONDS
+    private fun createLocationRequest(priorityValue: Int, distanceFilter: Double) {
+        mLocationRequest = LocationRequest().apply {
+            interval = UPDATE_INTERVAL_IN_MILLISECONDS
+            fastestInterval = FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS
+            if (priorityValue == 0) priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+            if (priorityValue == 1) priority =
+                LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY
+            if (priorityValue == 2) priority = LocationRequest.PRIORITY_LOW_POWER
+            if (priorityValue == 3) priority = LocationRequest.PRIORITY_NO_POWER
+            smallestDisplacement = distanceFilter.toFloat()
+            maxWaitTime = UPDATE_INTERVAL_IN_MILLISECONDS
+        }
+
     }
 
 
@@ -559,16 +567,17 @@ class LocationUpdatesService : Service(), MethodChannel.MethodCallHandler {
     override fun onDestroy() {
         super.onDestroy()
         isStarted = false
+        WakelockUtils.releaseLockMode()
         LocalBroadcastManager.getInstance(applicationContext).unregisterReceiver(actionReceiver)
         try {
             if (isGoogleApiAvailable && !this.forceLocationManager) {
-                mFusedLocationClient!!.removeLocationUpdates(mFusedLocationCallback!!)
+                mFusedLocationCallback?.let { mFusedLocationClient?.removeLocationUpdates(it) }
             } else {
-                mLocationManager!!.removeUpdates(mLocationManagerCallback!!)
+                mLocationManagerCallback?.let { mLocationManager?.removeUpdates(it) }
             }
 
             Utils.setRequestingLocationUpdates(this, false)
-            mNotificationManager!!.cancel(NOTIFICATION_ID)
+            mNotificationManager?.cancel(NOTIFICATION_ID)
         } catch (unlikely: SecurityException) {
             Utils.setRequestingLocationUpdates(this, true)
         }
