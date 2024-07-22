@@ -267,12 +267,13 @@ class LocationUpdatesService : Service(), MethodChannel.MethodCallHandler {
     fun triggerForegroundServiceStart(intent: Intent) {
         FlutterInjector.instance().flutterLoader().ensureInitializationComplete(this, null)
         UPDATE_INTERVAL_IN_MILLISECONDS =
-            intent?.getLongExtra("interval", UPDATE_INTERVAL_IN_MILLISECONDS)
+            intent.getLongExtra("interval", UPDATE_INTERVAL_IN_MILLISECONDS)
                 ?: UPDATE_INTERVAL_IN_MILLISECONDS
         FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS =
             intent?.getLongExtra("fastest_interval", UPDATE_INTERVAL_IN_MILLISECONDS / 2)
                 ?: UPDATE_INTERVAL_IN_MILLISECONDS / 2
 
+        val wakelock = intent.getBooleanExtra("wakelock", false)
         val startOnBoot = intent.getBooleanExtra("startOnBoot", false)
         val priority = intent.getIntExtra("priority", 0) ?: 0
         val distanceFilter = intent.getDoubleExtra("distance_filter", 0.0) ?: 0.0
@@ -307,6 +308,7 @@ class LocationUpdatesService : Service(), MethodChannel.MethodCallHandler {
 
         val edit = pref.edit()
         edit.putBoolean("locationActive", true)
+        edit.putBoolean("wakelock", wakelock)
         edit.putBoolean("startOnBoot", startOnBoot)
         edit.putLong("interval", UPDATE_INTERVAL_IN_MILLISECONDS)
         edit.putLong("fastestInterval", FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS)
@@ -380,6 +382,10 @@ class LocationUpdatesService : Service(), MethodChannel.MethodCallHandler {
     }
 
     fun requestLocationUpdates() {
+        val wakelock = pref.getBoolean("wakelock", false)
+        if (wakelock) {
+            WakelockUtils.acquireLockMode(this)
+        }
         Utils.setRequestingLocationUpdates(this, true)
         try {
             if (isGoogleApiAvailable && !this.forceLocationManager) {
@@ -426,6 +432,7 @@ class LocationUpdatesService : Service(), MethodChannel.MethodCallHandler {
         val edit = pref.edit()
         edit.putBoolean("locationActive", false)
         edit.remove("interval")
+        edit.remove("wakelock")
         edit.remove("startOnBoot")
         edit.remove("fastestInterval")
         edit.remove("priority")

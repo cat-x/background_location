@@ -58,8 +58,12 @@ class BackgroundLocation {
   }
 
   /// Start receiving location updated
+  /// [wakelock] if you want to keep the device awake,and add the permission(android.permission.WAKE_LOCK) in the AndroidManifest.xml
   static Future<dynamic> startLocationService({
     bool startOnBoot = false,
+    bool checkPermission = true,
+    bool doubleCheckPermission = false,
+    bool wakelock = false,
     int interval = 1000,
     int fastestInterval = 500,
     double distanceFilter = 0.0,
@@ -67,6 +71,19 @@ class BackgroundLocation {
     LocationPriority priority = LocationPriority.priorityHighAccuracy,
     LocationCallback? backgroundCallback,
   }) async {
+    if (checkPermission) {
+      if (Platform.isAndroid) {
+        //check permission
+        var permissionStatus = await _channel.invokeMethod('check_permission');
+        if (permissionStatus != true) {
+          //request permission
+          var permissionStatus = await _channel.invokeMethod('request_permission');
+          if (permissionStatus != true) {
+            return Future.error('Permission denied');
+          }
+        }
+      }
+    }
     var callbackHandle = 0;
     var locationCallback = 0;
     if (backgroundCallback != null) {
@@ -85,6 +102,8 @@ class BackgroundLocation {
       'callbackHandle': callbackHandle,
       'locationCallback': locationCallback,
       'startOnBoot': startOnBoot,
+      'checkPermission': doubleCheckPermission,
+      'wakelock': wakelock,
       'interval': interval,
       'fastest_interval': fastestInterval,
       'priority': priority.index,
@@ -93,6 +112,35 @@ class BackgroundLocation {
     });
   }
 
+  ///Only for Android
+  static Future<bool> checkPermission() async {
+    if (Platform.isAndroid) {
+      try {
+        return await _channel.invokeMethod('check_permission') as bool? ?? false;
+      } catch (e, s) {
+        log("Error checking permission", error: e, stackTrace: s);
+        return false;
+      }
+    } else {
+      log("checkPermission ,but Platform is not Android");
+      return true;
+    }
+  }
+
+  ///Only for Android
+  static Future<bool> requestPermission() async {
+    if (Platform.isAndroid) {
+      try {
+        return await _channel.invokeMethod('request_permission') as bool? ?? false;
+      } catch (e, s) {
+        log("Error requesting permission", error: e, stackTrace: s);
+        return false;
+      }
+    } else {
+      log("requestPermission ,but Platform is not Android");
+      return true;
+    }
+  }
 
   static Future<dynamic> setAndroidNotification({
     String? channelID,
